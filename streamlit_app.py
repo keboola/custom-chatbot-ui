@@ -79,7 +79,7 @@ if user_input:
     with st.chat_message("Kai"):
         st.markdown(response)
         # Display source nodes for Kai's response
-        st.write(response.source_nodes)
+        #st.write(response.source_nodes)
 
 with st.container():    
     last_output_message = []
