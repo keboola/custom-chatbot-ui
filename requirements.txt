@@ -1,6 +1,6 @@
 langchain==0.0.227
 langchainplus-sdk==0.0.20
-llama-index==0.7.17
+llama-index==0.9.36
 openai==0.27.8
 openapi-schema-pydantic==1.2.4
 pinecone-client
