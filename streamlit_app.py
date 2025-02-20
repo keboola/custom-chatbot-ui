@@ -1,17 +1,14 @@
 import os
 import logging
-from llama_index.chat_engine import CondenseQuestionChatEngine
-from llama_index.chat_engine.condense_question import ChatMessage
-from langchain.callbacks import StreamlitCallbackHandler
+from llama_index.core import VectorStoreIndex
+from llama_index.core.chat_engine import CondenseQuestionChatEngine
+from llama_index.core.prompts import Prompt
+from llama_index.vector_stores.pinecone import PineconeVectorStore
+from langchain.callbacks.streamlit import StreamlitCallbackHandler
 
 import streamlit as st
-
 import openai
 from pinecone import Pinecone
-from llama_index.vector_stores import PineconeVectorStore
-from llama_index import VectorStoreIndex
-from llama_index.prompts import Prompt
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -48,13 +45,12 @@ if "messages" not in st.session_state:
     
     st.session_state.messages.append({"role":"assistant", "content" : ai_intro})
 
-vector_store = PineconeVectorStore(index)
+vector_store = PineconeVectorStore(pinecone_index=index)
 index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 query_engine = index.as_query_engine()
 chat_engine = CondenseQuestionChatEngine.from_defaults(
     query_engine=query_engine,
     condense_question_prompt=custom_prompt,
-    #chat_history=st.session_state.messages,
     verbose=True
 )
 

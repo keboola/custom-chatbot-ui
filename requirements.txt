@@ -1,11 +1,5 @@
-langchain==0.0.227
-langchainplus-sdk==0.0.20
-llama-index==0.7.17
+langchain==0.3.19
+llama_index==0.12.19
 openai==1.63.2
-openapi-schema-pydantic==1.2.4
-pinecone-client
+pinecone
 python-dotenv
-transformers
-
-
-
