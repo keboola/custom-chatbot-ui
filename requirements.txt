@@ -2,4 +2,5 @@ langchain==0.3.19
 llama_index==0.12.19
 openai==1.63.2
 pinecone
+llama-index-vector-stores-pinecone
 python-dotenv
