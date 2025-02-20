@@ -7,7 +7,7 @@ from langchain.callbacks import StreamlitCallbackHandler
 import streamlit as st
 
 import openai
-import pinecone
+from pinecone import Pinecone
 from llama_index.vector_stores import PineconeVectorStore
 from llama_index import VectorStoreIndex
 from llama_index.prompts import Prompt
@@ -23,8 +23,9 @@ os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 api_key = os.getenv("PINECONE_API_KEY")
 pinecone_env = os.getenv("PINECONE_ENV")
 
-pinecone.init(api_key=api_key, environment=pinecone_env)
-index = pinecone.Index(os.getenv("PINECONE_INDEX_NAME"))
+# Initialize Pinecone with new method
+pc = Pinecone(api_key=api_key)
+index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 
 custom_prompt = Prompt("""\
 Given a conversation (between Human and Assistant) and a follow up message from Human, \
