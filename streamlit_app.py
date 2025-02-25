@@ -15,15 +15,18 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
+# Set page config
+st.set_page_config(page_title="Kai - SQL Assistant", page_icon="🤖")
+
+# Configure API keys
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-
 api_key = os.getenv("PINECONE_API_KEY")
-pinecone_env = os.getenv("PINECONE_ENV")
 
-# Initialize Pinecone with new method
+# Initialize Pinecone
 pc = Pinecone(api_key=api_key)
 index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 
+# Custom prompt for condensing questions
 custom_prompt = Prompt("""\
 Given a conversation (between Human and Assistant) and a follow up message from Human, \
 rewrite the message to be a standalone question that captures all relevant context \
@@ -38,13 +41,18 @@ from the conversation.
 <Standalone question>
 """)
 
-    
+# Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    ai_intro = "Hello, I'm Kai, your AI SQL Bot. I'm here to assist you with SQL queries.What can I do for you?"
-    
-    st.session_state.messages.append({"role":"assistant", "content" : ai_intro})
+    ai_intro = "Hello, I'm Kai, your AI SQL Bot. I'm here to assist you with SQL queries. What can I do for you?"
+    st.session_state.messages.append({"role": "assistant", "content": ai_intro})
 
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Initialize vector store and chat engine
 vector_store = PineconeVectorStore(pinecone_index=index)
 index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 query_engine = index.as_query_engine()
@@ -54,9 +62,8 @@ chat_engine = CondenseQuestionChatEngine.from_defaults(
     verbose=True
 )
 
-
-user_input = st.chat_input("ask_a_question")
-
+# Get user input
+user_input = st.chat_input("Ask me about SQL...")
 
 if user_input:
     # Add user message to the chat
@@ -64,26 +71,38 @@ if user_input:
         st.markdown(user_input)
     # Add user message to session state
     st.session_state.messages.append({"role": "user", "content": user_input})
-    # Display "Kai is typing..."
-    with st.chat_message("Kai"):
-        st.markdown("typing")
-    st_callback = StreamlitCallbackHandler(st.container())
-    response = chat_engine.chat(user_input)
-
-    # Add Kai's message to session state
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    # Display Kai's message
-    with st.chat_message("Kai"):
-        st.markdown(response)
-        # Display source nodes for Kai's response
-        #st.write(response.source_nodes)
+    
+    # Show assistant response with typing indicator
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        message_placeholder.markdown("Thinking...")
+        
+        # Create a container for the callback
+        callback_container = st.container()
+        st_callback = StreamlitCallbackHandler(callback_container)
+        
+        # Get response from chat engine
+        response = chat_engine.chat(user_input)
+        
+        # Update the placeholder with the final response
+        message_placeholder.markdown(response.response)
+        
+        # Optionally show sources
+        with st.expander("Sources"):
+            for i, source_node in enumerate(response.source_nodes):
+                st.markdown(f"**Source {i+1}**")
+                st.markdown(source_node.node.get_content())
+                st.markdown("---")
+    
+    # Add assistant message to session state
+    st.session_state.messages.append({"role": "assistant", "content": response.response})
 
 with st.container():    
     last_output_message = []
     last_user_message = []
 
     for message in reversed(st.session_state.messages):
-        if message["role"] == "Kai":
+        if message["role"] == "assistant":
             last_output_message = message
             break
     for message in reversed(st.session_state.messages):
