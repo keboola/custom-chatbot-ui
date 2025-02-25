@@ -16,13 +16,13 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 # Set page config
-st.set_page_config(page_title="Kai - SQL Assistant", page_icon="🤖")
+st.set_page_config(page_title="Kai - Keboola AI Assistant", page_icon="🤖")
 
-# Configure API keys
+# Configure API keys with Keboola environment variables
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 api_key = os.getenv("PINECONE_API_KEY")
 
-# Initialize Pinecone
+# Init Pinecone
 pc = Pinecone(api_key=api_key)
 index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 
@@ -41,18 +41,18 @@ from the conversation.
 <Standalone question>
 """)
 
-# Initialize chat history
+# Init chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    ai_intro = "Hello, I'm Kai, your AI SQL Bot. I'm here to assist you with SQL queries. What can I do for you?"
+    ai_intro = "Hello, I'm Kai, your Keboola AI Bot. What can I do for you?"
     st.session_state.messages.append({"role": "assistant", "content": ai_intro})
 
-# Display chat history
+# Display history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Initialize vector store and chat engine
+# Init vector store and chat engine
 vector_store = PineconeVectorStore(pinecone_index=index)
 index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 query_engine = index.as_query_engine()
@@ -62,8 +62,8 @@ chat_engine = CondenseQuestionChatEngine.from_defaults(
     verbose=True
 )
 
-# Get user input
-user_input = st.chat_input("Ask me about SQL...")
+# Get input
+user_input = st.chat_input("Ask me about your data...")
 
 if user_input:
     # Add user message to the chat
@@ -84,17 +84,17 @@ if user_input:
         # Get response from chat engine
         response = chat_engine.chat(user_input)
         
-        # Update the placeholder with the final response
+        # Update placeholder with response
         message_placeholder.markdown(response.response)
         
-        # Optionally show sources
+        # Show sources
         with st.expander("Sources"):
             for i, source_node in enumerate(response.source_nodes):
                 st.markdown(f"**Source {i+1}**")
                 st.markdown(source_node.node.get_content())
                 st.markdown("---")
     
-    # Add assistant message to session state
+    # Add response to session state
     st.session_state.messages.append({"role": "assistant", "content": response.response})
 
 with st.container():    
