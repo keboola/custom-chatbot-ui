@@ -1,6 +1,4 @@
-langchain==0.3.19
-llama_index==0.12.19
-openai==1.63.2
-pinecone
-llama-index-vector-stores-pinecone
-python-dotenv
+openai==1.66.3
+pinecone==6.0.2
+python-dotenv==1.0.1
+streamlit==1.39.0
