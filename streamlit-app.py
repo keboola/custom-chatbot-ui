@@ -150,17 +150,28 @@ def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, A
         similar_docs = []
         
         for row in rows:
-            # Convert string embedding to list of floats
-            row_embedding = [float(x) for x in row['embedding'].strip('[]').split(',')]
-            similarity = 1 - cosine(query_embedding, row_embedding)
-            
-            similar_docs.append({
-                "id": str(hash(row['text'])),  # Generate an ID from the text content
-                "score": similarity,
-                "text_preview": row['text'][:100] + "..." if len(row['text']) > 100 else row['text'],
-                "full_text": row['text'],
-                "metadata": json.loads(row['metadata']) if row.get('metadata') else {}
-            })
+            try:
+                # Convert string embedding to list of floats
+                row_embedding = [float(x) for x in row['embedding'].strip('[]').split(',')]
+                similarity = 1 - cosine(query_embedding, row_embedding)
+                
+                # Safely parse metadata
+                try:
+                    metadata = json.loads(row['metadata']) if row.get('metadata') and row['metadata'].strip() else {}
+                except json.JSONDecodeError:
+                    metadata = {}
+                    logging.warning(f"Failed to parse metadata for text: {row['text'][:100]}...")
+                
+                similar_docs.append({
+                    "id": str(hash(row['text'])),  # Generate an ID from the text content
+                    "score": similarity,
+                    "text_preview": row['text'][:100] + "..." if len(row['text']) > 100 else row['text'],
+                    "full_text": row['text'],
+                    "metadata": metadata
+                })
+            except Exception as e:
+                logging.error(f"Error processing row: {e}")
+                continue
         
         similar_docs.sort(key=lambda x: x['score'], reverse=True)
         return similar_docs[:top_k]
