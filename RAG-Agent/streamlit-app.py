@@ -1,44 +1,66 @@
 import os
 import logging
+import csv
 import streamlit as st
 from openai import OpenAI
 from pinecone import Pinecone
 from dotenv import load_dotenv
 from typing import List, Dict, Any
+from keboola.component import CommonInterface, dao
 
-# Load environment variables
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
-# Set page config
 st.set_page_config(page_title="RAG Assistant", page_icon="🤖")
 
-# Configure API keys
+ci = CommonInterface()
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 
-# Check APIs
-if not PINECONE_API_KEY:
-    st.error("PINECONE_API_KEY not set.")
-    st.stop()
 if not OPENAI_API_KEY:
     st.error("OPENAI_API_KEY not set.")
     st.stop()
 
-# Init APIs
 client = OpenAI(api_key=OPENAI_API_KEY)
-pc = Pinecone(api_key=PINECONE_API_KEY)
 
-# Check Index
-if INDEX_NAME not in pc.list_indexes().names():
-    st.error(f"Error: Index '{INDEX_NAME}' does not exist in your Pinecone account.")
-    st.stop()
+vector_store = st.sidebar.radio(
+    "Select Vector Store",
+    ["Pinecone", "Keboola"],
+    index=0  # Default to Pinecone
+)
 
-index = pc.Index(INDEX_NAME)
+if vector_store == "Pinecone":
+    if not PINECONE_API_KEY:
+        st.error("PINECONE_API_KEY not set.")
+        st.stop()
+    if not INDEX_NAME:
+        st.error("PINECONE_INDEX_NAME not set.")
+        st.stop()
+    
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+    
+    if INDEX_NAME not in pc.list_indexes().names():
+        st.error(f"Error: Index '{INDEX_NAME}' does not exist in your Pinecone account.")
+        st.stop()
+    
+    index = pc.Index(INDEX_NAME)
+    st.sidebar.success("Connected to Pinecone")
 
-# Custom prompt for condensing questions
+elif vector_store == "Keboola":
+    try:
+        tables = ci.configuration.tables_input_mapping
+        if not tables:
+            st.error("No input tables configured in Keboola.")
+            st.stop()
+        st.sidebar.success("Connected to Keboola")
+    except Exception as e:
+        st.error(f"Error connecting to Keboola: {e}")
+        st.stop()
+
 CONDENSE_QUESTION_PROMPT = """
 Given a conversation (between Human and Assistant) and a follow up message from Human, \
 rewrite the message to be a standalone question that captures all relevant context \
@@ -53,7 +75,6 @@ from the conversation.
 <Standalone question>
 """
 
-# Create embedding to compare
 def create_embedding(text: str) -> List[float]:
     """
     Create a vector embedding from text using OpenAI's embedding model.
@@ -88,30 +109,57 @@ def condense_question(chat_history, question):
 
 def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
     """
-    Find documents similar to the query text.
+    Find documents similar to the query text using the selected vector store.
     """
     query_embedding = create_embedding(query_text)
     
-    results = index.query(
-        vector=query_embedding,
-        top_k=top_k,
-        include_metadata=True
-    )
-    
-    similar_docs = []
-    for match in results["matches"]:
-        metadata = match.get("metadata", {})        
-        text_content = metadata.get("text", "")
+    if vector_store == "Pinecone":
+        results = index.query(
+            vector=query_embedding,
+            top_k=top_k,
+            include_metadata=True
+        )
         
-        similar_docs.append({
-            "id": match["id"],
-            "score": match["score"],
-            "text_preview": text_content,
-            "full_text": text_content,
-            "metadata": {k: v for k, v in metadata.items() if k != "text"}
-        })
+        similar_docs = []
+        for match in results["matches"]:
+            metadata = match.get("metadata", {})        
+            text_content = metadata.get("text", "")
+            
+            similar_docs.append({
+                "id": match["id"],
+                "score": match["score"],
+                "text_preview": text_content,
+                "full_text": text_content,
+                "metadata": {k: v for k, v in metadata.items() if k != "text"}
+            })
+        
+        return similar_docs
     
-    return similar_docs
+    elif vector_store == "Keboola":
+        table = ci.configuration.tables_input_mapping[0]
+        
+        with open(table.full_path, 'r') as f:
+            # Assumes CSV format with columns: id, embedding, text, metadata
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        
+        from scipy.spatial.distance import cosine
+        similar_docs = []
+        
+        for row in rows:
+            row_embedding = [float(x) for x in row['embedding'].strip('[]').split(',')]
+            similarity = 1 - cosine(query_embedding, row_embedding)
+            
+            similar_docs.append({
+                "id": row.get('id', ''),
+                "score": similarity,
+                "text_preview": row.get('text', '')[:100],
+                "full_text": row.get('text', ''),
+                "metadata": {k: v for k, v in row.items() if k not in ['id', 'embedding', 'text']}
+            })
+        
+        similar_docs.sort(key=lambda x: x['score'], reverse=True)
+        return similar_docs[:top_k]
 
 def rag_query(query: str, max_tokens: int = 1000) -> Dict:
     """
@@ -142,7 +190,6 @@ def rag_query(query: str, max_tokens: int = 1000) -> Dict:
         "source_nodes": similar_docs
     }
 
-# Init chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
     ai_intro = "Hello, I'm your RAG Assistant. What can I help you with?"
