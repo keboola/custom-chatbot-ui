@@ -137,8 +137,7 @@ def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, A
         return similar_docs
     
     elif vector_store == "Keboola":
-        tables = ci.get_input_tables_definitions()
-        table = tables[0]  # Get the first input table
+        table = ci.get_input_tables_definitions()[0]
         
         with open(table.full_path, 'r', encoding='utf-8') as f:
             # CSV format with columns: text, metadata, embedding
