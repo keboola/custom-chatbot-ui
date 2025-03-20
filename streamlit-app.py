@@ -53,7 +53,7 @@ if vector_store == "Pinecone":
 
 elif vector_store == "Keboola":
     try:
-        tables = ci.configuration.tables_input_mapping
+        tables = ci.get_input_tables_definitions()
         if not tables:
             st.error("No input tables configured in Keboola.")
             st.stop()
