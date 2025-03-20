@@ -28,7 +28,7 @@ if not OPENAI_API_KEY:
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-vector_store = st.sidebar.radio(
+vector_store = st.sidebar.selectbox(
     "Select Vector Store",
     ["Pinecone", "Keboola"],
     index=0  # Default to Pinecone
@@ -137,12 +137,11 @@ def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, A
         return similar_docs
     
     elif vector_store == "Keboola":
-        csv.field_size_limit(2**30)  # Set to a larger number
-        
+        csv.field_size_limit(2**30) # TODO: Ask about how to solve this better
         table = ci.get_input_tables_definitions()[0]
         
         with open(table.full_path, 'r', encoding='utf-8') as f:
-            # CSV format with columns: text, metadata, embedding
+            # CSV format: text, metadata, embedding
             reader = csv.DictReader(f)
             rows = list(reader)
         
@@ -151,11 +150,10 @@ def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, A
         
         for row in rows:
             try:
-                # Convert string embedding to list of floats
+                # Change string to list of floats
                 row_embedding = [float(x) for x in row['embedding'].strip('[]').split(',')]
                 similarity = 1 - cosine(query_embedding, row_embedding)
                 
-                # Safely parse metadata
                 try:
                     metadata = json.loads(row['metadata']) if row.get('metadata') and row['metadata'].strip() else {}
                 except json.JSONDecodeError:
@@ -163,7 +161,7 @@ def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, A
                     logging.warning(f"Failed to parse metadata for text: {row['text'][:100]}...")
                 
                 similar_docs.append({
-                    "id": str(hash(row['text'])),  # Generate an ID from the text content
+                    "id": str(hash(row['text'])),  # Create ID
                     "score": similarity,
                     "text_preview": row['text'][:100] + "..." if len(row['text']) > 100 else row['text'],
                     "full_text": row['text'],
