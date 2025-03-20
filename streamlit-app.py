@@ -1,6 +1,7 @@
 import os
 import logging
 import csv
+import json
 import streamlit as st
 from openai import OpenAI
 from pinecone import Pinecone
@@ -139,7 +140,7 @@ def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, A
         table = ci.configuration.tables_input_mapping[0]
         
         with open(table.full_path, 'r') as f:
-            # Assumes CSV format with columns: id, embedding, text, metadata
+            # CSV format with columns: text, metadata, embedding
             reader = csv.DictReader(f)
             rows = list(reader)
         
@@ -147,15 +148,16 @@ def query_similar_documents(query_text: str, top_k: int = 5) -> List[Dict[str, A
         similar_docs = []
         
         for row in rows:
+            # Convert string embedding to list of floats
             row_embedding = [float(x) for x in row['embedding'].strip('[]').split(',')]
             similarity = 1 - cosine(query_embedding, row_embedding)
             
             similar_docs.append({
-                "id": row.get('id', ''),
+                "id": str(hash(row['text'])),  # Generate an ID from the text content
                 "score": similarity,
-                "text_preview": row.get('text', '')[:100],
-                "full_text": row.get('text', ''),
-                "metadata": {k: v for k, v in row.items() if k not in ['id', 'embedding', 'text']}
+                "text_preview": row['text'][:100] + "..." if len(row['text']) > 100 else row['text'],
+                "full_text": row['text'],
+                "metadata": json.loads(row['metadata']) if row.get('metadata') else {}
             })
         
         similar_docs.sort(key=lambda x: x['score'], reverse=True)
